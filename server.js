@@ -1,3 +1,4 @@
+const fs = require("fs");
 const express = require("express");
 const path = require("path");
 
@@ -31,15 +32,68 @@ const app = express();
 const PORT = 5000;
 
 
+// Enable CORS for frontend requests
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") return res.sendStatus(200);
+    next();
+});
+
+
 /*
-    Home route
+    Home route: serves index.html if present, else JSON status
 */
 app.get("/", (req, res) => {
+    const desktopIndex = path.resolve(__dirname, "..", "index.html");
+    if (fs.existsSync(desktopIndex)) {
+        return res.sendFile(desktopIndex);
+    }
 
     res.json({
         message:
             "OTIF Generator API is running"
     });
+
+});
+
+
+/*
+    Download generated Excel file
+    Matches frontend link: /api/generated/:filename
+*/
+app.get("/api/generated/:filename", (req, res) => {
+
+    const fileName = path.basename(req.params.filename);
+    const filePath = path.join(__dirname, "generated", fileName);
+
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({
+            error: "Generated report file not found."
+        });
+    }
+
+    res.download(filePath, fileName);
+
+});
+
+
+/*
+    Download alias: /api/download/:filename
+*/
+app.get("/api/download/:filename", (req, res) => {
+
+    const fileName = path.basename(req.params.filename);
+    const filePath = path.join(__dirname, "generated", fileName);
+
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({
+            error: "Generated report file not found."
+        });
+    }
+
+    res.download(filePath, fileName);
 
 });
 
