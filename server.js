@@ -188,7 +188,8 @@ app.post(
                 await generateOtifExcel(
                     otifData.calculatedEntries,
                     templatePath,
-                    outputPath
+                    outputPath,
+                    extractionResults.company_name
                 );
 
 
