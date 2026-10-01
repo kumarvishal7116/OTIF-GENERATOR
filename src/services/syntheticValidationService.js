@@ -6,7 +6,9 @@ const {
 function validateSyntheticEntryRules(
     syntheticEntries,
     syntheticRequirements,
-    originalEntries = []
+    originalEntries = [],
+    allowedParties = [],
+    allowedProducts = []
 ) {
 
     if (!Array.isArray(syntheticEntries)) {
@@ -280,6 +282,38 @@ function validateSyntheticEntryRules(
 
             throw new Error(
                 `Invoice quantity must be greater than zero: ${entry.invoice_number}`
+            );
+
+        }
+
+
+        /*
+         * Party name must belong to allowed parties list (if defined).
+         */
+        if (
+            allowedParties &&
+            allowedParties.length > 0 &&
+            !allowedParties.includes(entry.party_name)
+        ) {
+
+            throw new Error(
+                `Unauthorized party name in synthetic entry: "${entry.party_name}". Allowed parties are: ${allowedParties.join(", ")}`
+            );
+
+        }
+
+
+        /*
+         * Product name must belong to allowed products list (if defined).
+         */
+        if (
+            allowedProducts &&
+            allowedProducts.length > 0 &&
+            !allowedProducts.includes(entry.product_name)
+        ) {
+
+            throw new Error(
+                `Unauthorized product name in synthetic entry: "${entry.product_name}". Allowed products are: ${allowedProducts.join(", ")}`
             );
 
         }

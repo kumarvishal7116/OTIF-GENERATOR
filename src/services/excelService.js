@@ -191,23 +191,34 @@ function populateMonth(worksheet, month, entries) {
  * - 29,30 - OTIF: headers linking to 28-MTD
  * - 76-ZSC-OTIF: headers linking to 28-MTD
  */
-function updateCompanyNameInWorkbook(workbook, companyName) {
-    if (!companyName) return;
+function updateCompanyNameInWorkbook(workbook, companyName, companyAddress = "") {
+    if (!companyName && !companyAddress) return;
 
-    const shortName = getCompanyInitials(companyName);
+    const shortName = companyName ? getCompanyInitials(companyName) : "";
 
     // 1. Update 28-MTD sheet
     const mtdSheet = workbook.getWorksheet("28-MTD");
     if (mtdSheet) {
-        mtdSheet.getCell("A1").value = shortName;
-        mtdSheet.getCell("B1").value = shortName;
-        mtdSheet.getCell("A2").value = shortName;
-        mtdSheet.getCell("B2").value = shortName;
+        if (shortName) {
+            mtdSheet.getCell("A1").value = shortName;
+            mtdSheet.getCell("B1").value = shortName;
+            mtdSheet.getCell("A2").value = shortName;
+            mtdSheet.getCell("B2").value = shortName;
+        }
 
-        mtdSheet.getCell("C1").value = companyName;
-        mtdSheet.getCell("D1").value = companyName;
-        mtdSheet.getCell("E1").value = companyName;
-        mtdSheet.getCell("F1").value = companyName;
+        if (companyName) {
+            mtdSheet.getCell("C1").value = companyName;
+            mtdSheet.getCell("D1").value = companyName;
+            mtdSheet.getCell("E1").value = companyName;
+            mtdSheet.getCell("F1").value = companyName;
+        }
+
+        if (companyAddress) {
+            mtdSheet.getCell("C2").value = companyAddress;
+            mtdSheet.getCell("D2").value = companyAddress;
+            mtdSheet.getCell("E2").value = companyAddress;
+            mtdSheet.getCell("F2").value = companyAddress;
+        }
 
         cleanSharedFormulas(mtdSheet);
     }
@@ -221,8 +232,10 @@ function updateCompanyNameInWorkbook(workbook, companyName) {
 
         otifSheet.getCell("A1").value = { formula: "'28-MTD'!A1" };
         otifSheet.getCell("C1").value = { formula: "'28-MTD'!C1" };
+        otifSheet.getCell("C2").value = { formula: "'28-MTD'!C2" };
         otifSheet.getCell("A43").value = { formula: "A1" };
         otifSheet.getCell("C43").value = { formula: "C1" };
+        otifSheet.getCell("C44").value = { formula: "C2" };
 
         // Ensure summary table (rows 4-6) has clean formulas
         otifSheet.getCell("B4").value = { formula: "A65" };
@@ -244,6 +257,9 @@ function updateCompanyNameInWorkbook(workbook, companyName) {
     // 3. Update 76-ZSC-OTIF sheet if present
     const zscSheet = workbook.getWorksheet("76-ZSC-OTIF");
     if (zscSheet) {
+        zscSheet.getCell("A2").value = { formula: "'28-MTD'!A1" };
+        zscSheet.getCell("C2").value = { formula: "'28-MTD'!C2" };
+
         zscSheet.getCell("N3").value = { formula: "'28-MTD'!G3" };
         zscSheet.getCell("O3").value = { formula: "'28-MTD'!G3" };
         zscSheet.getCell("P3").value = { formula: "'28-MTD'!G3" };
@@ -265,7 +281,8 @@ async function generateOtifExcel(
     calculatedEntries,
     templatePath,
     outputPath,
-    companyName = ""
+    companyName = "",
+    companyAddress = ""
 ) {
     validateCalculatedEntries(calculatedEntries);
 
@@ -288,9 +305,9 @@ async function generateOtifExcel(
     // First strip all shared formula metadata to eliminate corruption
     cleanSharedFormulas(worksheet);
 
-    // Update company name across sheets
-    if (companyName) {
-        updateCompanyNameInWorkbook(workbook, companyName);
+    // Update company name and company address across sheets
+    if (companyName || companyAddress) {
+        updateCompanyNameInWorkbook(workbook, companyName, companyAddress);
     }
 
     // Populate each month with data and clean formulas

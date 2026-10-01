@@ -24,6 +24,8 @@ const invoiceRecordSchema = z.object({
 const invoiceSchema = z.object({
     company_name: z.string(),
 
+    company_address: z.string().nullable().optional(),
+
     invoice_records: z.array(invoiceRecordSchema).min(1)
 });
 

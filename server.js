@@ -114,6 +114,103 @@ app.post(
 
 
             /*
+                Parse optional additional information provided by user
+            */
+            let additionalInfo = {};
+            const rawAdditionalInfo =
+                req.body.additional_info ||
+                req.body.additionalInfo;
+
+            if (rawAdditionalInfo) {
+                try {
+                    additionalInfo =
+                        typeof rawAdditionalInfo === "string"
+                            ? JSON.parse(rawAdditionalInfo)
+                            : rawAdditionalInfo;
+                } catch (e) {
+                    return res.status(400).json({
+                        error: "Invalid JSON format for additional_info."
+                    });
+                }
+            }
+
+            // Direct form field support if provided individually
+            if (req.body.company_name && !additionalInfo.company_name) {
+                additionalInfo.company_name = req.body.company_name;
+            }
+            if (req.body.company_address && !additionalInfo.company_address) {
+                additionalInfo.company_address = req.body.company_address;
+            }
+            if (req.body.party_names && !additionalInfo.party_names) {
+                additionalInfo.party_names = Array.isArray(req.body.party_names)
+                    ? req.body.party_names
+                    : [req.body.party_names];
+            }
+            if (req.body.product_names && !additionalInfo.product_names) {
+                additionalInfo.product_names = Array.isArray(req.body.product_names)
+                    ? req.body.product_names
+                    : [req.body.product_names];
+            }
+
+            const cleanCompanyName = (name) => {
+                if (!name) return "";
+                return name
+                    .replace(/^(exporter|seller|supplier|vendor|consignor|manufacturer|from)\s*[:\-–]?\s*/i, "")
+                    .trim();
+            };
+
+            const finalCompanyName = cleanCompanyName(
+                additionalInfo.company_name?.trim() ||
+                extractionResults.company_name
+            );
+
+            const finalCompanyAddress =
+                additionalInfo.company_address?.trim() ||
+                extractionResults.company_address ||
+                "";
+
+            // Extract party names from invoice
+            const invoiceParties = [
+                ...new Set(
+                    extractionResults.invoice_records
+                        .map((r) => r.party_name?.trim())
+                        .filter(Boolean)
+                )
+            ];
+
+            // User provided party names (if any)
+            const extraParties = Array.isArray(additionalInfo.party_names)
+                ? additionalInfo.party_names.map((p) => String(p).trim()).filter(Boolean)
+                : (Array.isArray(additionalInfo.parties)
+                    ? additionalInfo.parties.map((p) => String(p).trim()).filter(Boolean)
+                    : []);
+
+            const allowedParties = [
+                ...new Set([...invoiceParties, ...extraParties])
+            ];
+
+            // Extract product names from invoice
+            const invoiceProducts = [
+                ...new Set(
+                    extractionResults.invoice_records
+                        .map((r) => r.product_name?.trim())
+                        .filter(Boolean)
+                )
+            ];
+
+            // User provided product names (if any)
+            const extraProducts = Array.isArray(additionalInfo.product_names)
+                ? additionalInfo.product_names.map((p) => String(p).trim()).filter(Boolean)
+                : (Array.isArray(additionalInfo.products)
+                    ? additionalInfo.products.map((p) => String(p).trim()).filter(Boolean)
+                    : []);
+
+            const allowedProducts = [
+                ...new Set([...invoiceProducts, ...extraProducts])
+            ];
+
+
+            /*
                 Backend calculates the
                 required synthetic entries
             */
@@ -125,15 +222,17 @@ app.post(
 
 
             /*
-                Gemini generates exactly
-                16 NEW synthetic invoices
+                Gemini generates exactly 16 synthetic invoices
+                strictly constrained to allowed parties & products
             */
 
             const syntheticResult =
                 await generateSyntheticEntries(
-                    extractionResults.company_name,
+                    finalCompanyName,
                     extractionResults.invoice_records,
-                    monthlyRequirements.syntheticRequirements
+                    monthlyRequirements.syntheticRequirements,
+                    allowedParties,
+                    allowedProducts
                 );
 
 
@@ -181,7 +280,7 @@ app.post(
 
 
             /*
-                Generate Excel file
+                Generate Excel file with updated company name and address
             */
 
             const excelResult =
@@ -189,7 +288,8 @@ app.post(
                     otifData.calculatedEntries,
                     templatePath,
                     outputPath,
-                    extractionResults.company_name
+                    finalCompanyName,
+                    finalCompanyAddress
                 );
 
 
@@ -203,7 +303,16 @@ app.post(
                     "Synthetic invoices generated, OTIF calculated, and Excel file created successfully.",
 
                 company_name:
-                    extractionResults.company_name,
+                    finalCompanyName,
+
+                company_address:
+                    finalCompanyAddress,
+
+                allowed_parties:
+                    allowedParties,
+
+                allowed_products:
+                    allowedProducts,
 
                 synthetic_requirements:
                     monthlyRequirements.syntheticRequirements,

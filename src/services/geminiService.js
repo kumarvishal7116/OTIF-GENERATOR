@@ -100,6 +100,12 @@ const invoiceExtractionSchema = {
                 "Name of the company issuing the invoice."
         },
 
+        company_address: {
+            type: ["string", "null"],
+            description:
+                "Address of the company issuing the invoice (seller/exporter) as shown on the invoice."
+        },
+
         invoice_records: {
 
             type: "array",
@@ -353,17 +359,32 @@ COMPANY NAME
 
 company_name:
 
-Extract the name of the company that issued the invoice.
+Extract the legal or business name of the company that issued the invoice (seller/exporter).
 
+DO NOT include role or header prefixes such as "Exporter", "Seller", "Supplier", "Vendor", "Consignor", or "From".
 For example, if the invoice header says:
 
 "Exporter Hindustan Gum & Chemicals Ltd."
 
-then return:
+then return ONLY:
 
-"company_name": "Exporter Hindustan Gum & Chemicals Ltd."
+"company_name": "Hindustan Gum & Chemicals Ltd."
 
 Do not use the customer/buyer/consignee name as company_name.
+
+==================================================
+COMPANY ADDRESS
+==================================================
+
+company_address:
+
+Extract the physical address of the company that issued the invoice (seller/exporter) as shown on the invoice.
+For example, if the header shows:
+"Birla Colony Bhiwani-127021(HR.)"
+then return:
+"company_address": "Birla Colony Bhiwani-127021(HR.)"
+
+Do not include phone numbers, fax numbers, GSTIN, or Tax IDs in the address.
 
 ==================================================
 INVOICE NUMBER
@@ -849,16 +870,69 @@ async function extractInvoiceFromImage(
 async function generateSyntheticEntries(
     companyName,
     originalEntries,
-    syntheticRequirements
+    syntheticRequirements,
+    allowedParties = [],
+    allowedProducts = []
 ) {
 
     const prompt =
         buildSyntheticGenerationPrompt(
             companyName,
             originalEntries,
-            syntheticRequirements
+            syntheticRequirements,
+            allowedParties,
+            allowedProducts
         );
 
+    // Dynamically constrain party_name and product_name in the schema
+    const constrainedSchema = {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+            synthetic_entries: {
+                type: "array",
+                items: {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                        delivery_month: { type: "string" },
+                        order_date: { type: "string" },
+                        party_name: {
+                            type: "string",
+                            ...(allowedParties && allowedParties.length > 0
+                                ? { enum: allowedParties }
+                                : {})
+                        },
+                        product_name: {
+                            type: "string",
+                            ...(allowedProducts && allowedProducts.length > 0
+                                ? { enum: allowedProducts }
+                                : {})
+                        },
+                        order_quantity: { type: "number" },
+                        planned_delivery_date: { type: "string" },
+                        invoice_number: { type: "string" },
+                        invoice_date: { type: "string" },
+                        invoice_quantity: { type: "number" },
+                        unit: { type: "string" }
+                    },
+                    required: [
+                        "delivery_month",
+                        "order_date",
+                        "party_name",
+                        "product_name",
+                        "order_quantity",
+                        "planned_delivery_date",
+                        "invoice_number",
+                        "invoice_date",
+                        "invoice_quantity",
+                        "unit"
+                    ]
+                }
+            }
+        },
+        required: ["synthetic_entries"]
+    };
 
     const response =
         await ai.models.generateContent({
@@ -873,7 +947,7 @@ async function generateSyntheticEntries(
                     "application/json",
 
                 responseSchema:
-                    syntheticGenerationSchema
+                    constrainedSchema
 
             }
 
@@ -901,12 +975,14 @@ async function generateSyntheticEntries(
 
 
     /*
-     * Validate business rules.
+     * Validate business rules including allowed parties and products.
      */
     validateSyntheticEntryRules(
         validatedResponse.synthetic_entries,
         syntheticRequirements,
-        originalEntries
+        originalEntries,
+        allowedParties,
+        allowedProducts
     );
 
 

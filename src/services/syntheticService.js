@@ -1,14 +1,42 @@
 function buildSyntheticGenerationPrompt(
     companyName,
     originalEntries,
-    syntheticRequirements
+    syntheticRequirements,
+    allowedParties = [],
+    allowedProducts = []
 ) {
+
+    const partiesListStr =
+        allowedParties && allowedParties.length > 0
+            ? JSON.stringify(allowedParties, null, 2)
+            : JSON.stringify(
+                [...new Set(originalEntries.map((e) => e.party_name).filter(Boolean))],
+                null,
+                2
+            );
+
+    const productsListStr =
+        allowedProducts && allowedProducts.length > 0
+            ? JSON.stringify(allowedProducts, null, 2)
+            : JSON.stringify(
+                [...new Set(originalEntries.map((e) => e.product_name).filter(Boolean))],
+                null,
+                2
+            );
 
     return `
 You are generating synthetic invoice records for an OTIF (On-Time In-Full) supply chain dataset.
 
 COMPANY:
 ${companyName}
+
+
+ALLOWED PARTY / CUSTOMER NAMES:
+${partiesListStr}
+
+
+ALLOWED PRODUCT NAMES:
+${productsListStr}
 
 
 REFERENCE INVOICE RECORDS:
@@ -24,8 +52,6 @@ IMPORTANT:
 The uploaded invoice records are REFERENCE DATA ONLY.
 They provide context for:
 - company
-- primary customer
-- product line
 - unit of measurement
 - realistic quantity ranges
 - invoice number style
@@ -56,14 +82,18 @@ CRITICAL GENERATION RULES:
    - Exactly 4 entries for 2026-08.
    - Total must be EXACTLY 16 entries (no fewer, no more).
 
-2. CUSTOMER / PARTY VARIETY (DO NOT USE JUST ONE PARTY):
-   - Do NOT repeat the same single customer name for all 16 entries.
-   - Use 3 to 5 realistic B2B buyer companies relevant to this company's business and industry.
-   - Include the customer from the reference invoice (e.g. PRIYANSHU ENTERPRISES), and generate other realistic counterparties in relevant sectors (such as packaging, paper mills, chemical processing, textiles, or food industries).
+2. STRICT PARTY / CUSTOMER NAME ENFORCEMENT (NO EXTRA / FABRICATED PARTIES):
+   - You MUST ONLY select party_name from the ALLOWED PARTY / CUSTOMER NAMES list above.
+   - DO NOT invent, hallucinate, or add any other customer/party names that are not in this list.
+   - If the ALLOWED list contains only 1 party name, then ALL 16 synthetic entries MUST use that exact party name.
+   - If the ALLOWED list contains multiple party names, distribute the 16 entries among ONLY the names in this list.
 
-3. PRODUCT VARIETY (DO NOT USE ONLY ONE PRODUCT):
-   - Include the product from the reference invoice, but also generate realistic related product lines, grades, or derivatives manufactured by this company (for example, for a gum and chemical company: Bio Additives, Guar Gum Powder, Chemically Treated Guar Gum Powder, Industrial Gums, etc.).
-   - Use the same unit of measurement as the reference invoice (e.g., Kg, MT).
+3. STRICT PRODUCT NAME ENFORCEMENT (NO EXTRA / FABRICATED PRODUCTS):
+   - You MUST ONLY select product_name from the ALLOWED PRODUCT NAMES list above.
+   - DO NOT invent, hallucinate, or add any other product names that are not in this list.
+   - If the ALLOWED list contains only 1 product name, then ALL 16 synthetic entries MUST use that exact product name.
+   - If the ALLOWED list contains multiple product names, distribute the 16 entries among ONLY the names in this list.
+   - Use the same unit of measurement as the reference invoice.
 
 4. QUANTITY & IN-FULL REALISM (VARIETY IN FULFILLMENT):
    - Quantities should remain within realistic ranges matching the reference data (e.g. 1,000 to 30,000).

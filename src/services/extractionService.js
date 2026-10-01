@@ -110,6 +110,19 @@ async function extractInvoiceFromFile(file) {
  *
  * Each file is processed independently.
  */
+function cleanCompanyName(name) {
+    if (!name) return "";
+    return name
+        .replace(/^(exporter|seller|supplier|vendor|consignor|manufacturer|from)\s*[:\-–]?\s*/i, "")
+        .trim();
+}
+
+
+/**
+ * Extract invoice data from multiple files.
+ *
+ * Each file is processed independently.
+ */
 async function extractInvoicesFromFiles(files) {
 
     if (!Array.isArray(files) || files.length === 0) {
@@ -159,8 +172,7 @@ async function extractInvoicesFromFiles(files) {
     const companyNames =
         results.map(
             (result) =>
-                result.data.company_name
-                    .trim()
+                cleanCompanyName(result.data.company_name)
                     .toLowerCase()
         );
 
@@ -187,10 +199,10 @@ async function extractInvoicesFromFiles(files) {
 
     /**
      * Use the original company name
-     * from the first validated result.
+     * from the first validated result, cleaned of prefix labels.
      */
     const companyName =
-        results[0].data.company_name;
+        cleanCompanyName(results[0].data.company_name);
 
 
     /**
@@ -210,6 +222,7 @@ const invoiceRecordsWithOrderDates =
 
 return {
     company_name: companyName,
+    company_address: results[0].data.company_address || null,
     invoice_records:
         invoiceRecordsWithOrderDates
 };
